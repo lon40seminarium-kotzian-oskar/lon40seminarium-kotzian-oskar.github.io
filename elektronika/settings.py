@@ -78,7 +78,9 @@ WSGI_APPLICATION = 'elektronika.wsgi.application'
 import os
 
 # Use persistent disk on Render, or local db for development
-if os.path.exists('/data'):
+if os.environ.get('RENDER'):
+    # Render sets RENDER=true, ensure /data dir exists
+    os.makedirs('/data', exist_ok=True)
     DB_PATH = Path('/data/db.sqlite3')
 else:
     DB_PATH = BASE_DIR / 'db.sqlite3'
