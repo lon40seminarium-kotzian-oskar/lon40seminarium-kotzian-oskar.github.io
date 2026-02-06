@@ -79,9 +79,13 @@ import os
 
 # Use persistent disk on Render, or local db for development
 if os.environ.get('RENDER'):
-    # Render sets RENDER=true, ensure /data dir exists
-    os.makedirs('/data', exist_ok=True)
-    DB_PATH = Path('/data/db.sqlite3')
+    # Render sets RENDER=true. Try to use the persistent disk at /data
+    try:
+        os.makedirs('/data', exist_ok=True)
+        DB_PATH = Path('/data/db.sqlite3')
+    except PermissionError:
+        # If we can't create or write to /data, fall back to the local DB
+        DB_PATH = BASE_DIR / 'db.sqlite3'
 else:
     DB_PATH = BASE_DIR / 'db.sqlite3'
 

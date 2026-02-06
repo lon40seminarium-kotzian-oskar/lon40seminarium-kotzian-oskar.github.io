@@ -1,1 +1,1 @@
-web: gunicorn elektronika.wsgi:application
+web: bash start.sh
