@@ -1,1 +1,1 @@
-web: gunicorn elektronika.elektronika.wsgi:application
+web: gunicorn elektronika.wsgi:application
