@@ -7,7 +7,21 @@ echo "Working directory: $(pwd)"
 
 # Run migrations (allow failures transiently)
 echo "Applying migrations"
-python manage.py migrate --noinput || (echo "migrate failed"; exit 1)
+if python manage.py migrate --noinput; then
+	echo "migrate succeeded"
+else
+	echo "migrate failed with exit code $?"
+fi
+
+echo "Current DB tables:" 
+python - <<'PY'
+from django.db import connection
+try:
+	connection.ensure_connection()
+	print(connection.introspection.table_names())
+except Exception as e:
+	print('Failed to inspect DB tables:', e)
+PY
 
 echo "Collecting static files"
 python manage.py collectstatic --noinput || echo "collectstatic failed"
