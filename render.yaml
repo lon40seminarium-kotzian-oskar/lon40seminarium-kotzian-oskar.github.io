@@ -10,3 +10,7 @@ services:
       - key: DJANGO_SETTINGS_MODULE
         value: elektronika.settings
     autoDeploy: true
+    disk:
+      name: elektronika-data
+      mountPath: /data
+      sizeGB: 1
