@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pl">
+    <head>
+        <title>elektronika</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <h1>Elementy elektroniczne</h1>
+        {% for część in części_elektroniczne %}
+            <h3>{{ forloop.counter }}. {{ część.nazwa }}</h3>
+            {% if część.zdjęcie %}
+                <img src="{{ część.zdjęcie.url }}" alt="{{ część.nazwa }}" class="image">
+            {% else %}
+                <p>(brak zdjęcia)</p>
+            {% endif %}
+            <br>
+            <a href="{% url 'strona_części_elektronicznej' część.id %}">link do {{ część.nazwa }}</a>
+        {% endfor %}
+    </body>
+</html>

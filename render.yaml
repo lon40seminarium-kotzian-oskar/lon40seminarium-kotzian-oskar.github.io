@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: elektronika
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn elektronika.wsgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: elektronika.settings
+    autoDeploy: true
