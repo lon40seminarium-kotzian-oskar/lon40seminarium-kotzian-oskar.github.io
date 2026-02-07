@@ -134,7 +134,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Media files (User uploads)
-MEDIA_ROOT = BASE_DIR / 'zdjęcia'
+# Store on persistent disk if on Render, otherwise local for development
+if os.environ.get('RENDER'):
+    MEDIA_ROOT = Path('/data/zdjęcia')
+else:
+    MEDIA_ROOT = BASE_DIR / 'zdjęcia'
 # MEDIA_URL should start and end with a slash so URLs resolve correctly
 MEDIA_URL = '/zdjęcia/'
 

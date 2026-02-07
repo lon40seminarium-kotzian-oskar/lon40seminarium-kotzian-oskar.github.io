@@ -5,6 +5,12 @@ echo "Running startup tasks..."
 echo "Python: $(python --version)"
 echo "Working directory: $(pwd)"
 
+# Ensure media and data directories exist on Render
+if [ -n "$RENDER" ]; then
+	echo "Creating persistent storage directories on Render"
+	mkdir -p /data/zdjęcia
+fi
+
 # Run migrations (allow failures transiently)
 echo "Applying migrations"
 if python manage.py migrate --noinput; then
