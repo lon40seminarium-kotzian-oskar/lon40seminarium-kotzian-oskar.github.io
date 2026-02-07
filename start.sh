@@ -1,85 +1,79 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Running startup tasks..."
+echo "===== Starting Django application ====="
+echo "RENDER env var: ${RENDER:-NOT_SET}"
 echo "Python: $(python --version)"
 echo "Working directory: $(pwd)"
 
 # Ensure persistent storage directories exist on Render
-if [ -n "$RENDER" ]; then
-	echo "Creating persistent storage directories on Render"
+if [ -n "${RENDER:-}" ]; then
+	echo "Creating persistent storage directories..."
 	mkdir -p /data/zdjęcia
-	chmod 755 /data
-	chmod 755 /data/zdjęcia
+	chmod 755 /data 2>/dev/null || true
+	chmod 755 /data/zdjęcia 2>/dev/null || true
+	ls -la /data/ || echo "Warning: Could not list /data"
 fi
 
-# Check if database file exists and is potentially stale
-if [ -n "$RENDER" ] && [ -f "/data/db.sqlite3" ]; then
-	echo "Checking if existing database is valid..."
-	python - <<'PY'
-import os
-import sqlite3
-
+# Check and clean stale database
+if [ -n "${RENDER:-}" ] && [ -f "/data/db.sqlite3" ]; then
+	echo "Checking database integrity..."
+	python << 'PYEND'
+import os, sqlite3
 db_path = '/data/db.sqlite3'
 try:
 	conn = sqlite3.connect(db_path)
 	cursor = conn.cursor()
-	cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pokaz_elektroniki_część_elektroniczna'")
-	exists = cursor.fetchone()
+	cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+	tables = [row[0] for row in cursor.fetchall()]
 	conn.close()
-
-	if not exists:
-		print("Database exists but tables missing - removing stale database")
+	print(f"Found {len(tables)} existing tables: {tables}")
+	if 'pokaz_elektroniki_część_elektroniczna' not in tables:
+		print("Database missing required table - removing...")
 		os.remove(db_path)
-		print("Removed stale database, will recreate it")
 except Exception as e:
-	print(f"Database check error: {e}, removing stale database")
+	print(f"Database error: {e} - removing...")
 	try:
 		os.remove(db_path)
-		print("Removed potentially corrupted database")
 	except:
 		pass
-PY
+PYEND
 fi
 
-# Run migrations - MUST succeed
-echo "Applying migrations..."
+# Run migrations
+echo "Running Django migrations..."
 python manage.py migrate --noinput || {
-	echo "ERROR: Database migrations failed!"
+	echo "ERROR: Migrations failed!"
 	exit 1
 }
-echo "Migrations applied"
 
-# Verify tables were actually created
-echo ""
-echo "Verifying database tables..."
-python - <<'PY'
-from django.db import connection
+# Verify database
+echo "Verifying database..."
+python << 'PYEND'
 import sys
+from django.db import connection
+from django.apps import apps
 
 try:
 	connection.ensure_connection()
-	tables = connection.introspection.table_names()
-	print(f"Found {len(tables)} tables")
+	cursor = connection.cursor()
+	cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+	tables = [row[0] for row in cursor.fetchall()]
+	print(f"Tables found: {tables}")
 
-	# Check if our app table exists
-	required_table = 'pokaz_elektroniki_część_elektroniczna'
-	if required_table in tables:
-		print(f"✓ {required_table} table exists")
-	else:
-		print(f"ERROR: {required_table} table NOT found!")
-		print(f"Available tables: {tables}")
+	if 'pokaz_elektroniki_część_elektroniczna' not in tables:
+		print("ERROR: Required table not found!")
 		sys.exit(1)
-
+	print("✓ Database verified OK")
 except Exception as e:
-	print(f'ERROR: Failed to inspect DB tables: {e}')
+	print(f"ERROR: Database verification failed: {e}")
 	sys.exit(1)
-PY
+PYEND
 
-echo ""
+# Collect static files
 echo "Collecting static files..."
-python manage.py collectstatic --noinput || echo "WARNING: collectstatic had issues (non-critical)"
+python manage.py collectstatic --noinput 2>&1 | grep -v "^Copying" || true
 
 echo ""
-echo "Starting Gunicorn on port ${PORT:-8000}..."
-exec gunicorn elektronika.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1
+echo "===== Starting Gunicorn ====="
+exec gunicorn elektronika.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 60

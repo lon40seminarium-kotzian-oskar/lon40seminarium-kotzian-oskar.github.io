@@ -9,6 +9,8 @@ services:
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: elektronika.settings
+      - key: RENDER
+        value: "true"
     autoDeploy: true
     disk:
       name: elektronika-data
