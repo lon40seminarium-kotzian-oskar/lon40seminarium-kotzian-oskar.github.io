@@ -89,6 +89,14 @@ if os.environ.get('RENDER'):
 else:
     DB_PATH = str(BASE_DIR / 'db.sqlite3')
 
+# Debug: Print database location to help diagnose issues
+print(f"\n{'='*60}", file=__import__('sys').stderr)
+print(f"DJANGO SETTINGS LOADED", file=__import__('sys').stderr)
+print(f"RENDER env var: {os.environ.get('RENDER', 'NOT SET')}", file=__import__('sys').stderr)
+print(f"Database path: {DB_PATH}", file=__import__('sys').stderr)
+print(f"Database exists: {os.path.exists(DB_PATH)}", file=__import__('sys').stderr)
+print(f"{'='*60}\n", file=__import__('sys').stderr)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
