@@ -4,8 +4,8 @@ services:
     env: python
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt && python startup.py
-    startCommand: python -u startup.py && gunicorn elektronika.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 60
+        buildCommand: "pip install -r requirements.txt; python manage.py migrate; python manage.py collectstatic --no-input"
+        startCommand: gunicorn elektronika.wsgi
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: elektronika.settings
