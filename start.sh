@@ -1,50 +1,104 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 export DJANGO_SETTINGS_MODULE=elektronika.settings
 export RENDER=true
 export PYTHONUNBUFFERED=1
 
-echo "START.SH: Django initialization starting" >&2
+# Write startup log to persistent disk
+LOGFILE="/data/startup.log"
+exec 1>>"$LOGFILE" 2>&1
 
-# Create data directories
-mkdir -p /data/zdjęcia 2>/dev/null || true
-chmod 755 /data 2>/dev/null || true
-chmod 755 /data/zdjęcia 2>/dev/null || true
+echo "========================================"
+echo "START.SH - $(date)"
+echo "========================================"
+echo "RENDER=$RENDER"
+echo "PWD=$(pwd)"
+echo "User: $(whoami)"
+echo ""
 
-echo "START.SH: Running migrations" >&2
-python manage.py migrate --noinput --verbosity 2
+# Create directories
+echo "Creating directories..."
+mkdir -p /data/zdjęcia
+chmod 755 /data
+chmod 755 /data/zdjęcia
+ls -la /data/
 
-# Check if table was created
-echo "START.SH: Checking database" >&2
-python3 << 'DBCHECK'
+# Check for stale database
+echo ""
+echo "Checking for stale database..."
+if [ -f "/data/db.sqlite3" ]; then
+	echo "Found /data/db.sqlite3, checking if valid..."
+	python3 << 'EOF'
+import sqlite3, os
+try:
+	conn = sqlite3.connect('/data/db.sqlite3')
+	cursor = conn.cursor()
+	cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table'")
+	count = cursor.fetchone()[0]
+	conn.close()
+	print(f"Database has {count} tables")
+	if count == 0:
+		os.remove('/data/db.sqlite3')
+		print("Removed empty database")
+except Exception as e:
+	print(f"Database error: {e}")
+	os.remove('/data/db.sqlite3')
+	print("Removed corrupted database")
+EOF
+else
+	echo "No database file found (will be created)"
+fi
+
+# Run migrations
+echo ""
+echo "Running migrations..."
+python manage.py migrate --noinput
+
+# Check migrations created tables
+echo ""
+echo "Checking if migrations created tables..."
+python3 << 'EOF'
 import sqlite3, sys, os
 
-db_path = '/data/db.sqlite3'
-if not os.path.exists(db_path):
-	print("ERROR: Database file does not exist!", file=sys.stderr)
+if not os.path.exists('/data/db.sqlite3'):
+	print("ERROR: Database file was not created!")
 	sys.exit(1)
 
-conn = sqlite3.connect(db_path)
+conn = sqlite3.connect('/data/db.sqlite3')
 cursor = conn.cursor()
 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
 tables = [row[0] for row in cursor.fetchall()]
 conn.close()
 
-print(f"Tables in database: {tables}", file=sys.stderr)
+print(f"Tables created: {tables}")
+for t in tables:
+	print(f"  - {t}")
+
 if 'pokaz_elektroniki_część_elektroniczna' not in tables:
-	print("ERROR: Expected table not found!", file=sys.stderr)
+	print("ERROR: Required table NOT created by migrations!")
+	print("Available tables:", tables)
 	sys.exit(1)
-print("OK: Database tables verified", file=sys.stderr)
-DBCHECK
+
+print("SUCCESS: All expected tables exist!")
+EOF
 
 if [ $? -ne 0 ]; then
-	echo "START.SH: Database check failed, exiting" >&2
+	echo ""
+	echo "ERROR: Database verification failed!"
 	exit 1
 fi
 
-echo "START.SH: Collecting static files" >&2
-python manage.py collectstatic --noinput --verbosity 0 2>/dev/null || true
+# Collect static
+echo ""
+echo "Collecting static files..."
+python manage.py collectstatic --noinput --verbosity 0
 
-echo "START.SH: Starting Gunicorn" >&2
+echo ""
+echo "========================================"
+echo "Starting Gunicorn..."
+echo "========================================"
+
 exec gunicorn elektronika.wsgi:application \
 	--bind 0.0.0.0:${PORT:-8000} \
 	--workers 1 \
