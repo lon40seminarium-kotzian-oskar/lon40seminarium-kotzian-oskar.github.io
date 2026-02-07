@@ -1,79 +1,92 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "===== Starting Django application ====="
-echo "RENDER env var: ${RENDER:-NOT_SET}"
+echo "======================================"
+echo "START: Django app initialization"
+echo "======================================"
+echo "RENDER=${RENDER:-NOT_SET}"
+echo "PWD=$(pwd)"
 echo "Python: $(python --version)"
-echo "Working directory: $(pwd)"
 
-# Ensure persistent storage directories exist on Render
-if [ -n "${RENDER:-}" ]; then
-	echo "Creating persistent storage directories..."
-	mkdir -p /data/zdjęcia
-	chmod 755 /data 2>/dev/null || true
-	chmod 755 /data/zdjęcia 2>/dev/null || true
-	ls -la /data/ || echo "Warning: Could not list /data"
+# Create directories
+echo "Setting up persistent storage..."
+mkdir -p /data/zdjęcia 2>/dev/null || true
+chmod 755 /data 2>/dev/null || true
+chmod 755 /data/zdjęcia 2>/dev/null || true
+
+# Show database status
+echo ""
+echo "Checking database..."
+if [ -f "/data/db.sqlite3" ]; then
+	echo "Found existing /data/db.sqlite3"
+	ls -lh /data/db.sqlite3
+else
+	echo "No database file yet (will be created)"
 fi
 
-# Check and clean stale database
-if [ -n "${RENDER:-}" ] && [ -f "/data/db.sqlite3" ]; then
-	echo "Checking database integrity..."
-	python << 'PYEND'
+# Clean stale database
+if [ -f "/data/db.sqlite3" ]; then
+	python3 << 'DBCHECK'
 import os, sqlite3
-db_path = '/data/db.sqlite3'
 try:
-	conn = sqlite3.connect(db_path)
+	conn = sqlite3.connect('/data/db.sqlite3')
 	cursor = conn.cursor()
 	cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
 	tables = [row[0] for row in cursor.fetchall()]
 	conn.close()
-	print(f"Found {len(tables)} existing tables: {tables}")
-	if 'pokaz_elektroniki_część_elektroniczna' not in tables:
-		print("Database missing required table - removing...")
-		os.remove(db_path)
-except Exception as e:
-	print(f"Database error: {e} - removing...")
-	try:
-		os.remove(db_path)
-	except:
-		pass
-PYEND
+	print(f"Current tables: {tables}")
+	if not tables or 'pokaz_elektroniki_część_elektroniczna' not in tables:
+		print("Missing required table - removing stale db")
+		os.remove('/data/db.sqlite3')
+except:
+	print("Database corrupt - removing")
+	os.remove('/data/db.sqlite3')
+DBCHECK
 fi
 
-# Run migrations
-echo "Running Django migrations..."
-python manage.py migrate --noinput || {
+# RUN MIGRATIONS
+echo ""
+echo "======================================"
+echo "Running migrations..."
+echo "======================================"
+python manage.py migrate --noinput
+if [ $? -ne 0 ]; then
 	echo "ERROR: Migrations failed!"
 	exit 1
-}
+fi
 
-# Verify database
-echo "Verifying database..."
-python << 'PYEND'
-import sys
-from django.db import connection
-from django.apps import apps
-
-try:
-	connection.ensure_connection()
-	cursor = connection.cursor()
-	cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-	tables = [row[0] for row in cursor.fetchall()]
-	print(f"Tables found: {tables}")
-
-	if 'pokaz_elektroniki_część_elektroniczna' not in tables:
-		print("ERROR: Required table not found!")
-		sys.exit(1)
-	print("✓ Database verified OK")
-except Exception as e:
-	print(f"ERROR: Database verification failed: {e}")
-	sys.exit(1)
-PYEND
-
-# Collect static files
-echo "Collecting static files..."
-python manage.py collectstatic --noinput 2>&1 | grep -v "^Copying" || true
-
+# Verify tables
 echo ""
-echo "===== Starting Gunicorn ====="
-exec gunicorn elektronika.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 60
+echo "======================================"
+echo "Verifying tables..."
+echo "======================================"
+python3 << 'VERIFY'
+import sys, sqlite3
+conn = sqlite3.connect('/data/db.sqlite3')
+cursor = conn.cursor()
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+tables = [row[0] for row in cursor.fetchall()]
+conn.close()
+print(f"Tables in database: {tables}")
+if 'pokaz_elektroniki_część_elektroniczna' not in tables:
+	print("ERROR: Expected table not created!")
+	sys.exit(1)
+print("OK: All tables present")
+VERIFY
+
+# Collect static
+echo ""
+echo "Collecting static files..."
+python manage.py collectstatic --noinput 2>&1 | tail -3
+
+# Start server
+echo ""
+echo "======================================"
+echo "Starting Gunicorn server..."
+echo "======================================"
+exec gunicorn elektronika.wsgi:application \
+	--bind 0.0.0.0:${PORT:-8000} \
+	--workers 1 \
+	--timeout 60 \
+	--access-logfile - \
+	--error-logfile -
