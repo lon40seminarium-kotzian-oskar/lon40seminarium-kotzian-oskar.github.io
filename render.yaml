@@ -4,9 +4,8 @@ services:
     env: python
     plan: free
     region: oregon
-        buildCommand: "pip install -r requirements.txt; mkdir -p /data; chmod 777 /data; python manage.py migrate; python manage.py collectstatic --no-input"
-        startCommand: gunicorn elektronika.wsgi
-    envVars:
+            buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input"
+            startCommand: "python manage.py migrate && gunicorn elektronika.wsgi"    envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: elektronika.settings
       - key: RENDER
