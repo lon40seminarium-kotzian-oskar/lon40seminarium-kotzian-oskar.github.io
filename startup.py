@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 import os
 import sys
-import django
 import sqlite3
+
+# Create persistent storage BEFORE anything else
+os.makedirs('/data/zdjęcia', exist_ok=True)
 
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'elektronika.settings')
 os.environ['RENDER'] = 'true'
 
-# Ensure /data exists
-os.makedirs('/data/zdjęcia', exist_ok=True)
-
-# Import after setting env vars
+import django
 django.setup()
 
 from django.core.management import call_command
