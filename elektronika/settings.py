@@ -79,30 +79,15 @@ WSGI_APPLICATION = 'elektronika.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-import os
-
-# Use persistent disk on Render, or local db for development
-if os.environ.get('RENDER'):
-    # Render sets RENDER=true. Use the persistent disk at /data
-    DB_PATH = '/data/db.sqlite3'
-else:
-    DB_PATH = str(BASE_DIR / 'db.sqlite3')
-
-# Debug: Print database location to help diagnose issues
-print(f"\n{'='*60}", file=__import__('sys').stderr)
-print(f"DJANGO SETTINGS LOADED", file=__import__('sys').stderr)
-print(f"RENDER env var: {os.environ.get('RENDER', 'NOT SET')}", file=__import__('sys').stderr)
-print(f"Database path: {DB_PATH}", file=__import__('sys').stderr)
-print(f"Database exists: {os.path.exists(DB_PATH)}", file=__import__('sys').stderr)
-print(f"{'='*60}\n", file=__import__('sys').stderr)
+import dj_database_url
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': DB_PATH,
-    }
+    'default': dj_database_url.config(
+        default='sqlite:///db.sqlite3', # Default for local development
+        conn_max_age=600
+    )
 }
+
 
 
 # Password validation
