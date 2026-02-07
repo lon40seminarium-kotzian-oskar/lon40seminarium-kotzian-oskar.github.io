@@ -82,12 +82,12 @@ if os.environ.get('RENDER'):
     # Render sets RENDER=true. Try to use the persistent disk at /data
     try:
         os.makedirs('/data', exist_ok=True)
-        DB_PATH = Path('/data/db.sqlite3')
+        DB_PATH = str(Path('/data/db.sqlite3'))
     except PermissionError:
         # If we can't create or write to /data, fall back to the local DB
-        DB_PATH = BASE_DIR / 'db.sqlite3'
+        DB_PATH = str(BASE_DIR / 'db.sqlite3')
 else:
-    DB_PATH = BASE_DIR / 'db.sqlite3'
+    DB_PATH = str(BASE_DIR / 'db.sqlite3')
 
 DATABASES = {
     'default': {
@@ -144,7 +144,11 @@ MEDIA_URL = '/zdjęcia/'
 
 # Static files (for production)
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+# Only include STATICFILES_DIRS if the directory exists
+if os.path.exists(BASE_DIR / 'static'):
+    STATICFILES_DIRS = [BASE_DIR / 'static']
+else:
+    STATICFILES_DIRS = []
 # Use WhiteNoise to serve static files in production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
