@@ -11,4 +11,8 @@ services:
       - key: RENDER
         value: "true"
     autoDeploy: true
+    disk:
+      name: elektronika-data
+      mountPath: /data
+      sizeGB: 1
 
